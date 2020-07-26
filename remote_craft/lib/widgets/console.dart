@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:remote_craft/services/rcon.dart';
 import 'dart:io';
-import 'package:remote_craft/services/server_io.dart';
+import 'package:remote_craft/services/rcon.dart';
+import 'package:remote_craft/widgets/server_response.dart';
 
 class Console extends StatefulWidget {
   final String serverAddress;
@@ -17,13 +17,21 @@ class _ConsoleState extends State<Console> {
   ServerSocket server;
   RCONConnection rconConnection;
 
-  String password;
+  String textEntry;
   List<String> responses;
 
   @override
   void initState() {
-    password = '';
+    textEntry = '';
     responses = List<String>();
+    rconConnection = RCONConnection(
+      address: widget.serverAddress,
+      port: widget.port,
+      onConnect: () => setState(() => responses.add('Connected!')),
+      onAuthenticate: (success) => setState(() => responses.add(success ? 'Authentication successful' : 'Incorrect password')),
+      onCommandResponse: (response) => setState(() => responses.add(response))
+    );
+
     super.initState();
   }
 
@@ -43,34 +51,25 @@ class _ConsoleState extends State<Console> {
         Expanded(
           child: ListView.builder(
             itemCount: responses.length,
-            itemBuilder: (context, i) => Text(responses[i])
+            itemBuilder: (context, i) => ServerResponse(responses[i])
           )
         ),
 
         TextField(
-          onSubmitted: (pw) => setState(() {
-            password = pw;
+          onChanged: (text) => setState(() {
+            textEntry = text;
           }),
         ),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: <Widget>[
             RaisedButton(
-              child: Text('Start Server'),
-              onPressed: () async {
-                ServerSocket temp = await startServer(port: 25575);
-                setState(() => server = temp);
-              },
-            ),
-            RaisedButton(
-              child: Text('Open Socket'),
-              onPressed: server == null ? null : () {
-                setState(() => rconConnection = RCONConnection(widget.serverAddress, port: widget.port));
-              },
-            ),
-            RaisedButton(
               child: Text('Authenticate'),
-              onPressed: rconConnection == null ? null : () => rconConnection.authenticate(password),
+              onPressed: rconConnection == null ? null : () => rconConnection.authenticate(textEntry),
+            ),
+            RaisedButton(
+              child: Text('Send Command'),
+              onPressed: rconConnection == null ? null : () => rconConnection.sendCommand(textEntry),
             )
           ],
         ),

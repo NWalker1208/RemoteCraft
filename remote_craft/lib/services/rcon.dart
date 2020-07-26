@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:remote_craft/services/server_io.dart';
 
@@ -57,7 +58,7 @@ class _Packet {
     List<int> charCodes = List<int>(payloadLength);
     for (int c = 0; c < payloadLength; c++)
       charCodes[c] = data[c + 12];
-    payload = String.fromCharCodes(charCodes);
+    payload = String.fromCharCodes(charCodes).trimRight();
   }
 
   Uint8List toBytes() {
@@ -92,12 +93,20 @@ class RCONConnection {
   bool get connected => _socket != null;
   bool get authenticated => _authenticated;
 
-  RCONConnection(String serverAddress, {int port = 25575}) {
+  FutureOr<void> Function(bool) onAuthenticate;
+  FutureOr<void> Function(String) onCommandResponse;
+
+  RCONConnection({String address = 'localhost', int port = 25575,
+                  FutureOr<void> Function() onConnect,
+                  this.onAuthenticate, this.onCommandResponse}) {
     openSocket(
-      address: serverAddress,
+      address: address,
       port: port,
       listener: _socketListener,
-    ).then((socket) => _socket = socket);
+    ).then((socket) {
+      _socket = socket;
+      onConnect?.call();
+    });
   }
 
   void close() {
@@ -107,9 +116,19 @@ class RCONConnection {
     }
   }
 
-  Future<void> authenticate(String password) async {
-    if (connected)
+  void authenticate(String password) {
+    if (connected) {
+      print('Authenticating on server ${_socket.address.address}...');
       _socket.add(_Packet(id: 1, type: _PacketType.login, payload: password).toBytes());
+    }
+  }
+
+  int _nextId = 2;
+  void sendCommand(String command) {
+    if (authenticated) {
+      print('Sending command "$command" to server ${_socket.address.address}...');
+      _socket.add(_Packet(id: _nextId++, type: _PacketType.command, payload: command).toBytes());
+    }
   }
 
   void _socketListener(Uint8List data) {
@@ -121,11 +140,13 @@ class RCONConnection {
       if (responsePacket.id == 1) {
         _authenticated = true;
         print('RCON session successfully authenticated!');
+        onAuthenticate?.call(true);
       } else {
         _authenticated = false;
         print('Authentication failed.');
+        onAuthenticate?.call(false);
       }
-
-    }
+    } else if (responsePacket.type == _PacketType.response)
+      onCommandResponse?.call(responsePacket.payload);
   }
 }
