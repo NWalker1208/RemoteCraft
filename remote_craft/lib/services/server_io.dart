@@ -1,36 +1,32 @@
 import 'dart:io';
-import 'dart:convert';
 import 'dart:async';
-import 'package:socket_io/socket_io.dart' as SIO;
 
-SIO.Server startServer({int port}) {
-  var server = new SIO.Server();
-  server.on('connection', (client) {
-    print('connection default namespace');
-    client.on('msg', (data) {
-      print('data from default => $data');
-      client.emit('fromServer', "ok");
-    });
-  });
-  server.listen(port);
+import 'dart:typed_data';
 
+Future<ServerSocket> startServer({int port}) async {
+  ServerSocket server = await ServerSocket.bind(InternetAddress.anyIPv4, port);
+  server.listen(_handleClient);
   return server;
 }
 
-Future<Socket> openSocket({String address, int port}) async {
-  // Dart client
-  print('Opening socket to $address:$port');
+void _handleClient(Socket client){
+  print('Connection from: ${client.remoteAddress.address}:${client.remotePort}');
+  client.write("Hello from simple server!\n");
+  client.close();
+}
+
+Future<Socket> openSocket({String address, int port, FutureOr<void> Function(Uint8List) listener}) async {
   Socket socket = await Socket.connect(address, port);
-  print('Connected to $address:$port');
-
-  // listen to the received data event stream
-  socket.listen((List<int> event) {
-    print(utf8.decode(event));
-  });
-
-  // send hello
-  print('Sending \'hello\'');
-  socket.add(utf8.encode('hello'));
-
+  socket.listen(
+    (Uint8List data) {
+      print('Client received: ' + data.toList().toString()); // String.fromCharCodes(data).trim());
+      listener?.call(data);
+    },
+    onDone: () {
+      print("Connection closed");
+      socket.destroy();
+    }
+  );
+  print('Connected to: ${socket.remoteAddress.address}:${socket.remotePort}');
   return socket;
 }

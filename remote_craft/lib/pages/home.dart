@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:remote_craft/widgets/console.dart';
 
 class HomePage extends StatelessWidget {
+  final String serverAddress;
+  final int port;
+
+  HomePage({this.serverAddress, this.port});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -9,7 +14,7 @@ class HomePage extends StatelessWidget {
         title: Text('RemoteCraft'),
       ),
 
-      body: Console(),
+      body: Console(serverAddress: serverAddress, port: port),
 
       bottomNavigationBar: BottomNavigationBar(
         items: [
